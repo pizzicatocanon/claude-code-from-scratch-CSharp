@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Claude Code - Web UI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-message: #0f3460;
+      --bg-user: #533483;
+      --bg-assistant: #1e2a4a;
+      --bg-tool: #0d2137;
+      --text-primary: #e8e8e8;
+      --text-secondary: #a8b2c1;
+      --text-muted: #6b7b8f;
+      --accent: #7c5cbf;
+      --accent-hover: #9b7fd4;
+      --border: #2a3a5e;
+      --success: #4caf50;
+      --warning: #ff9800;
+      --error: #f44336;
+      --code-bg: #0d1b2a;
+      --scrollbar-thumb: #3a4a6e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 顶部导航栏 */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .model-badge {
+      font-size: 12px;
+      padding: 3px 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-secondary);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
+
+    /* 消息区域 */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .messages::-webkit-scrollbar {
+      width: 8px;
+    }
+    .messages::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+
+    .message {
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-user {
+      background: var(--bg-user);
+      border-radius: 16px 16px 4px 16px;
+      padding: 14px 18px;
+      margin-left: auto;
+      max-width: 70%;
+      width: auto;
+    }
+
+    .message-assistant {
+      background: var(--bg-assistant);
+      border: 1px solid var(--border);
+      border-radius: 4px 16px 16px 16px;
+      padding: 18px 22px;
+    }
+
+    .message-assistant .content {
+      line-height: 1.7;
+      word-wrap: break-word;
+    }
+
+    .message-assistant .content p {
+      margin-bottom: 12px;
+    }
+
+    .message-assistant .content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .message-assistant .content code {
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+
+    .message-assistant .content pre {
+      background: var(--code-bg);
+      padding: 14px 18px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0;
+      border: 1px solid var(--border);
+    }
+
+    .message-assistant .content pre code {
+      background: transparent;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 工具调用 */
+    .tool-call {
+      background: var(--bg-tool);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--warning);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 8px 0;
+      font-size: 13px;
+      max-width: 860px;
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tool-call .tool-name {
+      color: var(--warning);
+      font-weight: 600;
+      font-family: monospace;
+    }
+
+    .tool-call .tool-status {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .tool-result {
+      border-left-color: var(--success);
+    }
+
+    .tool-result .tool-name {
+      color: var(--success);
+    }
+
+    /* 状态指示器 */
+    .status-indicator {
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 8px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Token 使用信息 */
+    .usage-info {
+      max-width: 860px;
+      width: 100%;
+      margin: 4px auto 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+      padding-right: 4px;
+    }
+
+    /* 输入区域 */
+    .input-area {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+
+    .input-container {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      position: relative;
+    }
+
+    #message-input {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 48px;
+      max-height: 200px;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.5;
+    }
+
+    #message-input:focus {
+      border-color: var(--accent);
+    }
+
+    #message-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 20px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* 欢迎信息 */
+    .welcome {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .welcome h1 {
+      font-size: 28px;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .welcome p {
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .welcome .shortcuts {
+      margin-top: 24px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .welcome .shortcuts kbd {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    /* 设置面板 */
+    .settings-panel {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 360px;
+      height: 100vh;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    .settings-panel.open {
+      display: block;
+    }
+
+    .settings-panel h3 {
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+
+    .settings-panel label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .settings-panel input,
+    .settings-panel select {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-size: 13px;
+      margin-bottom: 16px;
+      outline: none;
+    }
+
+    .settings-panel input:focus,
+    .settings-panel select:focus {
+      border-color: var(--accent);
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .messages { padding: 12px; }
+      .input-area { padding: 12px; }
+      .message-user { max-width: 85%; }
+      .header { padding: 10px 16px; }
+      .prompt-panel { width: 100%; }
+    }
+
+    /* 提示词调试面板 */
+    .prompt-panel {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 480px;
+      height: 100vh;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      z-index: 200;
+      overflow-y: auto;
+      flex-direction: column;
+    }
+
+    .prompt-panel.open {
+      display: flex;
+    }
+
+    .prompt-panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      z-index: 1;
+    }
+
+    .prompt-panel-header h3 {
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    .prompt-panel-stats {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 8px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-primary);
+    }
+
+    .prompt-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 0;
+    }
+
+    .prompt-module {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .prompt-module-header {
+      padding: 10px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      transition: background 0.2s;
+    }
+
+    .prompt-module-header:hover {
+      background: var(--bg-primary);
+    }
+
+    .prompt-module-header .module-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .prompt-module-header .module-size {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .prompt-module-header .chevron {
+      transition: transform 0.2s;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .prompt-module.expanded .chevron {
+      transform: rotate(90deg);
+    }
+
+    .prompt-module-content {
+      display: none;
+      padding: 0 20px 12px;
+    }
+
+    .prompt-module.expanded .prompt-module-content {
+      display: block;
+    }
+
+    .prompt-module-content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-secondary);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .prompt-module-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 12px;
+      padding: 8px 0;
+    }
+
+    .module-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .module-dot.active { background: var(--success); }
+    .module-dot.empty { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">Mini Claude Code</span>
+      <span class="model-badge" id="model-badge">loading...</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon" id="btn-prompt" title="查看提示词拼装">📋 Prompt</button>
+      <button class="btn-icon" id="btn-clear" title="清除对话 (Ctrl+L)">🗑️ 清除</button>
+      <button class="btn-icon" id="btn-settings" title="设置">⚙️</button>
+    </div>
+  </div>
+
+  <!-- 聊天消息 -->
+  <div class="messages" id="messages">
+    <div class="welcome">
+      <h1>Mini Claude Code</h1>
+      <p>轻量级 AI 编程助手。可以帮你分析代码、修复 Bug、编写新功能、重构项目等。</p>
+      <div class="shortcuts">
+        <kbd>Enter</kbd> 发送 &nbsp;|&nbsp; <kbd>Shift+Enter</kbd> 换行 &nbsp;|&nbsp; <kbd>Ctrl+L</kbd> 清除
+      </div>
+    </div>
+  </div>
+
+  <!-- 输入区域 -->
+  <div class="input-area">
+    <div class="input-container">
+      <div class="input-wrapper">
+        <textarea id="message-input" placeholder="输入消息..." rows="1"></textarea>
+      </div>
+      <button class="send-btn" id="send-btn">发送</button>
+    </div>
+  </div>
+
+  <!-- 设置面板 -->
+  <div class="settings-panel" id="settings-panel">
+    <h3>⚙️ 设置</h3>
+    <label>模型</label>
+    <input type="text" id="setting-model" placeholder="e.g. ep-20240903xxxxx">
+    <label>API Base URL (OpenAI 兼容)</label>
+    <input type="text" id="setting-api-base" placeholder="e.g. https://ark.cn-beijing.volces.com/api/v3">
+    <label>API Key</label>
+    <input type="password" id="setting-api-key" placeholder="sk-... 或 ark-...">
+    <label>启用 Thinking</label>
+    <select id="setting-thinking">
+      <option value="false">关闭</option>
+      <option value="true">开启</option>
+    </select>
+    <button class="btn-icon" style="width: 100%; margin-top: 8px;" id="btn-save-settings">💾 保存设置</button>
+    <button class="btn-icon" style="width: 100%; margin-top: 8px;" id="btn-close-settings">关闭</button>
+  </div>
+
+  <!-- 提示词拼装调试面板 -->
+  <div class="prompt-panel" id="prompt-panel">
+    <div class="prompt-panel-header">
+      <h3>📋 提示词拼装</h3>
+      <button class="btn-icon" id="btn-close-prompt">✕</button>
+    </div>
+    <div class="prompt-panel-stats" id="prompt-stats">加载中...</div>
+    <div class="prompt-panel-body" id="prompt-body">
+      <!-- 动态填充 -->
+    </div>
+  </div>
+
+  <!-- Markdown 渲染: 使用 marked.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script>
+    // ─── 状态 ────────────────────────────────
+    const sessionId = "web-" + Date.now().toString(36);
+    let isWaiting = false;
+    let settings = loadSettings();
+
+    // ─── DOM 引用 ─────────────────────────────
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("message-input");
+    const sendBtn = document.getElementById("send-btn");
+    const modelBadge = document.getElementById("model-badge");
+    const btnClear = document.getElementById("btn-clear");
+    const btnSettings = document.getElementById("btn-settings");
+    const settingsPanel = document.getElementById("settings-panel");
+
+    // ─── 初始化 ───────────────────────────────
+    init();
+
+    async function init() {
+      try {
+        const resp = await fetch("/api/status");
+        const data = await resp.json();
+        modelBadge.textContent = settings.model || data.model || "unknown";
+        if (!data.hasApiKey && !settings.apiKey) {
+          addSystemMessage("⚠️ 未检测到 API Key，请点击右上角 ⚙️ 设置。");
+        }
+      } catch (e) {
+        modelBadge.textContent = "disconnected";
+        addSystemMessage("❌ 无法连接到后端服务器，请确保 server.js 正在运行。");
+      }
+    }
+
+    // ─── 发送消息 ─────────────────────────────
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text || isWaiting) return;
+
+      // 清除欢迎信息
+      const welcome = messagesEl.querySelector(".welcome");
+      if (welcome) welcome.remove();
+
+      // 显示用户消息
+      addUserMessage(text);
+      inputEl.value = "";
+      autoResize();
+
+      // 设置等待状态
+      isWaiting = true;
+      sendBtn.disabled = true;
+      sendBtn.textContent = "...";
+
+      // 添加状态指示器
+      const statusEl = addStatus("正在思考...");
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            message: text,
+            options: {
+              model: settings.model || undefined,
+              apiBase: settings.apiBase || undefined,
+              apiKey: settings.apiKey || undefined,
+              thinking: settings.thinking === "true" ? true : false,
+            },
+          }),
+        });
+
+        // 读取 SSE 流 (正确的 event/data 配对解析)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let assistantText = "";
+        let usageInfo = null;
+        let currentEvent = "message"; // 默认事件类型
+
+        // 移除状态指示器
+        statusEl.remove();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop(); // 保留不完整的行
+
+          for (const line of lines) {
+            if (line === "") {
+              // 空行表示事件结束，重置
+              currentEvent = "message";
+              continue;
+            }
+            if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7).trim();
+              continue;
+            }
+            if (line.startsWith("data: ")) {
+              const raw = line.slice(6);
+              try {
+                const data = JSON.parse(raw);
+                switch (currentEvent) {
+                  case "text":
+                    assistantText += data.content || "";
+                    break;
+                  case "tool_call":
+                    addToolCall(data.name, data.status || "running");
+                    break;
+                  case "tool_result":
+                    addToolResult(data.summary);
+                    break;
+                  case "usage":
+                    usageInfo = data;
+                    break;
+                  case "status":
+                    // 更新状态指示
+                    break;
+                  case "error":
+                    addErrorMessage(data.message);
+                    break;
+                  case "done":
+                    break;
+                }
+              } catch (e) { /* 忽略解析失败 */ }
+            }
+          }
+        }
+
+        // 显示助手回复
+        if (assistantText) {
+          addAssistantMessage(assistantText);
+        }
+
+        // 显示使用信息
+        if (usageInfo) {
+          addUsageInfo(usageInfo);
+        }
+
+      } catch (err) {
+        statusEl.remove();
+        addErrorMessage("请求失败: " + err.message);
+      } finally {
+        isWaiting = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = "发送";
+        inputEl.focus();
+      }
+    }
+
+    // ─── DOM 操作 ──────────────────────────────
+
+    function addUserMessage(text) {
+      const div = document.createElement("div");
+      div.className = "message message-user";
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addAssistantMessage(text) {
+      const div = document.createElement("div");
+      div.className = "message message-assistant";
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "content";
+      // 使用 marked 渲染 Markdown
+      if (window.marked) {
+        contentDiv.innerHTML = marked.parse(text);
+      } else {
+        contentDiv.textContent = text;
+      }
+      div.appendChild(contentDiv);
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addToolCall(name, status) {
+      const div = document.createElement("div");
+      div.className = "message tool-call";
+      div.innerHTML = `<span class="tool-name">🔧 ${name}</span><span class="tool-status">${status}</span>`;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addToolResult(summary) {
+      const div = document.createElement("div");
+      div.className = "message tool-call tool-result";
+      div.innerHTML = `<span class="tool-name">✅ 完成</span><span class="tool-status">${escapeHtml(summary || "")}</span>`;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addStatus(text) {
+      const div = document.createElement("div");
+      div.className = "status-indicator";
+      div.innerHTML = `<span class="dot"></span><span>${text}</span>`;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+      return div;
+    }
+
+    function addSystemMessage(text) {
+      const div = document.createElement("div");
+      div.className = "message message-assistant";
+      div.innerHTML = `<div class="content" style="color: var(--warning)">${text}</div>`;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addErrorMessage(text) {
+      const div = document.createElement("div");
+      div.className = "message message-assistant";
+      div.innerHTML = `<div class="content" style="color: var(--error)">❌ ${escapeHtml(text)}</div>`;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addUsageInfo(usage) {
+      const div = document.createElement("div");
+      div.className = "usage-info";
+      div.textContent = `tokens: ${usage.input} in / ${usage.output} out`;
+      messagesEl.appendChild(div);
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ─── 输入框自动调整高度 ────────────────────
+    function autoResize() {
+      inputEl.style.height = "auto";
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + "px";
+    }
+
+    inputEl.addEventListener("input", autoResize);
+
+    // ─── 快捷键 ───────────────────────────────
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "l") {
+        e.preventDefault();
+        clearChat();
+      }
+    });
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    // ─── 清除对话 ─────────────────────────────
+    btnClear.addEventListener("click", clearChat);
+
+    async function clearChat() {
+      try {
+        await fetch("/api/clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+      } catch (e) { /* 忽略 */ }
+
+      messagesEl.innerHTML = `
+        <div class="welcome">
+          <h1>Mini Claude Code</h1>
+          <p>轻量级 AI 编程助手。可以帮你分析代码、修复 Bug、编写新功能、重构项目等。</p>
+          <div class="shortcuts">
+            <kbd>Enter</kbd> 发送 &nbsp;|&nbsp; <kbd>Shift+Enter</kbd> 换行 &nbsp;|&nbsp; <kbd>Ctrl+L</kbd> 清除
+          </div>
+        </div>`;
+    }
+
+    // ─── 设置面板 ──────────────────────────────
+    btnSettings.addEventListener("click", () => {
+      settingsPanel.classList.toggle("open");
+      // 填充当前设置
+      document.getElementById("setting-model").value = settings.model || "";
+      document.getElementById("setting-api-base").value = settings.apiBase || "";
+      document.getElementById("setting-api-key").value = settings.apiKey || "";
+      document.getElementById("setting-thinking").value = settings.thinking || "false";
+    });
+
+    document.getElementById("btn-close-settings").addEventListener("click", () => {
+      settingsPanel.classList.remove("open");
+    });
+
+    document.getElementById("btn-save-settings").addEventListener("click", async () => {
+      settings.model = document.getElementById("setting-model").value.trim();
+      settings.apiBase = document.getElementById("setting-api-base").value.trim();
+      settings.apiKey = document.getElementById("setting-api-key").value.trim();
+      settings.thinking = document.getElementById("setting-thinking").value;
+      saveSettings(settings);
+      modelBadge.textContent = settings.model || "default";
+      settingsPanel.classList.remove("open");
+
+      // 删除旧 session，下次发消息会使用新配置创建
+      try {
+        await fetch(`/api/session/${sessionId}`, { method: "DELETE" });
+      } catch (e) { /* 忽略 */ }
+
+      addSystemMessage("✅ 设置已保存。下一条消息将使用新配置。");
+    });
+
+    // ─── 持久化设置 ───────────────────────────
+    function loadSettings() {
+      try {
+        return JSON.parse(localStorage.getItem("mini-claude-settings") || "{}");
+      } catch { return {}; }
+    }
+
+    function saveSettings(s) {
+      localStorage.setItem("mini-claude-settings", JSON.stringify(s));
+    }
+
+    // ─── 提示词拼装面板 ──────────────────────────
+    const btnPrompt = document.getElementById("btn-prompt");
+    const promptPanel = document.getElementById("prompt-panel");
+    const promptStats = document.getElementById("prompt-stats");
+    const promptBody = document.getElementById("prompt-body");
+
+    btnPrompt.addEventListener("click", () => {
+      promptPanel.classList.toggle("open");
+      if (promptPanel.classList.contains("open")) {
+        loadPromptDebug();
+      }
+    });
+
+    document.getElementById("btn-close-prompt").addEventListener("click", () => {
+      promptPanel.classList.remove("open");
+    });
+
+    async function loadPromptDebug() {
+      promptStats.textContent = "加载中...";
+      promptBody.innerHTML = "";
+
+      try {
+        const resp = await fetch("/api/prompt-debug");
+        const data = await resp.json();
+
+        if (data.error) {
+          promptStats.textContent = `错误: ${data.error}`;
+          return;
+        }
+
+        // 统计信息
+        promptStats.innerHTML = `
+          总长度: <strong>${data.full_prompt_length.toLocaleString()}</strong> 字符 &nbsp;|&nbsp;
+          预估 tokens: <strong>~${data.estimated_tokens.toLocaleString()}</strong>
+        `;
+
+        // 模块列表
+        const moduleOrder = [
+          "environment", "git_context", "claude_md",
+          "memory", "skills", "agents", "deferred_tools", "tool_list"
+        ];
+
+        const moduleIcons = {
+          environment: "🖥️",
+          git_context: "📂",
+          claude_md: "📝",
+          memory: "🧠",
+          skills: "⚡",
+          agents: "🤖",
+          deferred_tools: "🔌",
+          tool_list: "🔧",
+        };
+
+        for (const key of moduleOrder) {
+          const mod = data.modules[key];
+          if (!mod) continue;
+
+          const hasContent = mod.content && mod.content.trim() && !mod.content.startsWith("(无") && !mod.content.startsWith("(none");
+          const charCount = mod.content ? mod.content.length : 0;
+
+          const moduleEl = document.createElement("div");
+          moduleEl.className = "prompt-module";
+          moduleEl.innerHTML = `
+            <div class="prompt-module-header">
+              <span class="module-label">
+                <span class="module-dot ${hasContent ? 'active' : 'empty'}"></span>
+                ${moduleIcons[key] || "📄"} ${mod.label}
+              </span>
+              <span>
+                <span class="module-size">${hasContent ? charCount.toLocaleString() + ' chars' : '空'}</span>
+                <span class="chevron">▶</span>
+              </span>
+            </div>
+            <div class="prompt-module-content">
+              ${hasContent
+                ? `<pre>${escapeHtml(mod.content)}</pre>`
+                : `<div class="prompt-module-empty">此模块为空</div>`
+              }
+            </div>
+          `;
+
+          // 点击展开/折叠
+          const header = moduleEl.querySelector(".prompt-module-header");
+          header.addEventListener("click", () => {
+            moduleEl.classList.toggle("expanded");
+          });
+
+          promptBody.appendChild(moduleEl);
+        }
+
+        // 添加"查看完整 Prompt"折叠区
+        const fullEl = document.createElement("div");
+        fullEl.className = "prompt-module";
+        fullEl.innerHTML = `
+          <div class="prompt-module-header">
+            <span class="module-label">
+              <span class="module-dot active"></span>
+              📜 完整 System Prompt
+            </span>
+            <span>
+              <span class="module-size">${data.full_prompt_length.toLocaleString()} chars</span>
+              <span class="chevron">▶</span>
+            </span>
+          </div>
+          <div class="prompt-module-content">
+            <pre>${escapeHtml(data.full_prompt)}</pre>
+          </div>
+        `;
+        fullEl.querySelector(".prompt-module-header").addEventListener("click", () => {
+          fullEl.classList.toggle("expanded");
+        });
+        promptBody.appendChild(fullEl);
+
+      } catch (err) {
+        promptStats.textContent = `加载失败: ${err.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

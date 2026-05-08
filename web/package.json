@@ -1,0 +1,14 @@
+{
+  "name": "mini-claude-web",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Web UI for mini-claude-code",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}
